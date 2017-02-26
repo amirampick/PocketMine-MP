@@ -30,7 +30,7 @@ interface Info{
 	/**
 	 * Actual Minecraft: PE protocol version
 	 */
-	const CURRENT_PROTOCOL = 101;
+	const CURRENT_PROTOCOL = 102;
 	const MINECRAFT_VERSION = "v1.0.3.0";
 	const MINECRAFT_VERSION_NETWORK = "1.0.3.0";
 
