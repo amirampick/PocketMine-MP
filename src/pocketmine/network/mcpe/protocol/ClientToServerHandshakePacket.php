@@ -34,6 +34,7 @@ class ClientToServerHandshakePacket extends DataPacket{
 	}
 
 	public function encode(){
+		$this->reset();
 		//No payload
 	}
 
