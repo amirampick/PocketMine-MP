@@ -1915,7 +1915,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		$this->uuid = UUID::fromString($packet->clientUUID);
 		$this->rawUUID = $this->uuid->toBinary();
 
-		if(!Player::isValidUserName($packet->username) or $this->iusername === "rcon" or $this->iusername === "console"){
+		if(!Player::isValidUserName($packet->username)){
 			$this->close("", "disconnectionScreen.invalidName");
 			return true;
 		}
