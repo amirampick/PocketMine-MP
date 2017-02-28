@@ -882,9 +882,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		$pk->z = $pos->z;
 		$this->dataPacket($pk);
 
-		$pk = new PlayStatusPacket();
-		$pk->status = PlayStatusPacket::PLAYER_SPAWN;
-		$this->dataPacket($pk);
+		$this->sendPlayStatus(PlayStatusPacket::PLAYER_SPAWN);
 
 		$this->server->getPluginManager()->callEvent($ev = new PlayerJoinEvent($this,
 			new TranslationContainer(TextFormat::YELLOW . "%multiplayer.player.joined", [
@@ -1698,29 +1696,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		return ($dot1 - $dot) >= -$maxDiff;
 	}
 
-	public function onPlayerPreLogin(){
-		//TODO: implement auth
-		$this->tryAuthenticate();
-	}
 
-	public function tryAuthenticate(){
-		$pk = new PlayStatusPacket();
-		$pk->status = PlayStatusPacket::LOGIN_SUCCESS;
-		$this->dataPacket($pk);
-		//TODO: implement authentication after it is available
-		$this->authenticateCallback(true);
-	}
-
-	public function authenticateCallback($valid){
-
-		//TODO add more stuff after authentication is available
-		if(!$valid){
-			$this->close("", "disconnectionScreen.invalidSession");
-			return;
-		}
-
-		$this->processLogin();
-	}
 
 	protected function processLogin(){
 		if(!$this->server->isWhitelisted(strtolower($this->getName()))){
@@ -1897,16 +1873,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		if($packet->protocol !== ProtocolInfo::CURRENT_PROTOCOL){
 			if($packet->protocol < ProtocolInfo::CURRENT_PROTOCOL){
 				$message = "disconnectionScreen.outdatedClient";
-
-				$pk = new PlayStatusPacket();
-				$pk->status = PlayStatusPacket::LOGIN_FAILED_CLIENT;
-				$this->directDataPacket($pk);
+				$this->sendPlayStatus(PlayStatusPacket::LOGIN_FAILED_CLIENT, true);
 			}else{
 				$message = "disconnectionScreen.outdatedServer";
-
-				$pk = new PlayStatusPacket();
-				$pk->status = PlayStatusPacket::LOGIN_FAILED_SERVER;
-				$this->directDataPacket($pk);
+				$this->sendPlayStatus(PlayStatusPacket::LOGIN_FAILED_SERVER, true);
 			}
 			$this->close("", $message, false);
 
@@ -1937,13 +1907,28 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			return true;
 		}
 
-		$this->onPlayerPreLogin();
+		//TODO: add JWT verification, add encryption
+
+		$this->sendPlayStatus(PlayStatusPacket::LOGIN_SUCCESS);
+
+		$pk = new ResourcePacksInfoPacket();
+		$this->dataPacket($pk); //TODO: add resource packs stuff
 
 		return true;
 	}
 
 	public function handlePlayStatus(PlayStatusPacket $packet) : bool{
 		return false;
+	}
+
+	public function sendPlayStatus(int $status, bool $immediate = false){
+		$pk = new PlayStatusPacket();
+		$pk->status = $status;
+		if($immediate){
+			$this->directDataPacket($pk);
+		}else{
+			$this->dataPacket($pk);
+		}
 	}
 
 	public function handleServerToClientHandshake(ServerToClientHandshakePacket $packet) : bool{
@@ -1972,7 +1957,22 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	}
 
 	public function handleResourcePackClientResponse(ResourcePackClientResponsePacket $packet) : bool{
-		// TODO: Implement resource packs
+		switch($packet->status){
+			case ResourcePackClientResponsePacket::STATUS_REFUSED:
+				$this->close("", "must accept resource packs to join", true);
+				break;
+			case ResourcePackClientResponsePacket::STATUS_SEND_PACKS:
+				//TODO
+				break;
+			case ResourcePackClientResponsePacket::STATUS_HAVE_ALL_PACKS:
+				$pk = new ResourcePackStackPacket();
+				$this->dataPacket($pk); //TODO: send resource stack
+				break;
+			case ResourcePackClientResponsePacket::STATUS_COMPLETED:
+				$this->processLogin();
+				break;
+		}
+
 		return true;
 	}
 
@@ -2146,7 +2146,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	}
 
 	public function handleLevelSoundEvent(LevelSoundEventPacket $packet) : bool{
-		return false;
+		//TODO: add events so plugins can change this
+		$this->getLevel()->addChunkPacket($this->chunk->getX(), $this->chunk->getZ(), $packet);
+		return true;
 	}
 
 	public function handleLevelEvent(LevelEventPacket $packet) : bool{
